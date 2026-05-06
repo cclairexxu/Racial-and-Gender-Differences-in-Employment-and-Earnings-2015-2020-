@@ -5,8 +5,9 @@ race and gender influence the likelihood of earning above the national median
 weekly income. Cleaned and analyzed the data in R, built a logistic regression 
 model, and created visualizations to show earnings gaps across demographic groups.
 ## Files
-- [analysis.R](analysis.R) – R script with the full analysis and visualizations
-- [DifferencesReport.pdf](DifferencesReport.pdf) – Written report covering methods and findings
+- [Differences in Employment Report.qmd](Differences-in-Employment-Report.qmd) – Quarto file with the full analysis and visualizations
+- [Differences in Employment Report.pdf](Differences-in-Employment-Report.pdf) – Written report covering methods and findings
+- [references.bib](references.bib) – Bibliography file
 ## Visualizations
 Line plots, bar charts, predicted probability plots with confidence intervals, 
 and a forest plot of odds ratios across race, gender, and year
