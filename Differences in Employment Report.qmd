@@ -1,0 +1,486 @@
+---
+title: "Racial and Gender Differences in Employment and Earnings (2015–2020)"
+author: "By Rebecca Rajesh, Jaden Shah, Rian Shah, and Claire Xu"
+format:
+  pdf:
+    documentclass: article
+    geometry:
+      - margin=1in
+    fontsize: 12pt
+execute:
+  echo: false
+  warning: false
+  message: false
+bibliography: references.bib
+---
+
+```{r}
+#| label: setup
+# Load libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+
+invlogit <- function(x) exp(x)/(1 + exp(x))
+theme_set(theme_bw(base_size = 8))
+
+# load data
+employed <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-02-23/employed.csv')
+earn     <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-02-23/earn.csv')
+
+# compute median on full dataset before filtering
+median_earn <- median(earn$median_weekly_earn, na.rm = TRUE)
+
+# add high_earner to full earn for plots
+earn <- earn %>%
+  mutate(high_earner = as.integer(median_weekly_earn >= median_earn))
+
+# filtered dataset for modelling
+earn_clean <- earn %>%
+  filter(
+    year >= 2015 & year <= 2020,
+    sex  != "Both Sexes",
+    race != "All Races"
+  ) %>%
+  mutate(
+    sex  = factor(sex,  levels = c("Men", "Women")),
+    race = factor(race, levels = c("White", "Black or African American", "Asian")),
+    year = factor(year)
+  ) %>%
+  droplevels()
+
+# fit model
+model_logit <- glm(
+  high_earner ~ sex + race + year,
+  data   = earn_clean,
+  family = binomial
+)
+
+# prediction grid for figures
+newdata <- expand.grid(
+  sex  = levels(earn_clean$sex),
+  race = levels(earn_clean$race),
+  year = levels(earn_clean$year)
+)
+
+pred <- predict(model_logit, newdata = newdata, type = "link", se.fit = TRUE)
+# convert log-odds and bounds to probability scale
+newdata$prob       <- invlogit(pred$fit)
+newdata$prob_lower <- invlogit(pred$fit - 1.96 * pred$se.fit)
+newdata$prob_upper <- invlogit(pred$fit + 1.96 * pred$se.fit)
+
+# convert year back to numeric for line plot
+newdata$year_num <- as.numeric(as.character(newdata$year))
+```
+
+# Abstract
+
+This study investigates the demographic determinants of high-earner status in the United States using data from the U.S. Bureau of Labor Statistics (BLS) spanning 2015 to 2020. The primary research question explores how race, gender, and age influence the likelihood of an individual earning above the national median weekly income. Utilizing a logistic regression framework, we modeled "high-earner status" as a binary outcome ($y_i = \mathbb{1}(\text{earnings}_i \ge \text{median})$) against predictors including sex, race, age group, and year.
+
+Our analysis reveals significant disparities across all studied dimensions. Compared to the baseline of men, women were found to have an odds ratio of 0.44, indicating they are significantly less likely to be classified as high earners. Racial gaps were equally pronounced; Asian and White individuals showed significantly higher probabilities of exceeding the median income compared to Black or African American individuals, who were the only racial group in the model less likely than the baseline to be high earners (OR = 0.15). Furthermore, we observed a steady temporal increase in the probability of high-earner status from 2015 to 2020, likely influenced by inflationary pressures on wages relative to the fixed 2015 median cutoff.
+
+Our original modeling strategy included age group as a predictor. However, we encountered challenges due to limitations in the dataset, as detailed age group information was only available within aggregated categories such as "All Races" or "Both Sexes." This created difficulties in aligning age with fully disaggregated race and sex variables and prevented the joint inclusion of all three without introducing aggregation inconsistencies, so age group was eventually removed from the final model.
+
+# Introduction
+
+The distribution of wealth and income remains one of the most persistent socio-economic challenges in the United States. While the national economy experienced various shifts between 2015 and 2020, the extent to which demographic factors - specifically race and gender - influence individual earning potential is a critical area of inquiry. Understanding these disparities is essential for identifying systemic pay gaps and informing policy discussions regarding labor equity [@bls2021].
+
+The motivation for this research stems from the need to quantify the likelihood of achieving "high-earner" status, defined here as earning above the national median income. While raw averages often highlight disparities, a logistic regression approach allows us to estimate the odds of crossing the median threshold while accounting for multiple variables simultaneously [@wickham2019]. Our primary research question is: Do race and gender significantly affect the likelihood of earning above the median income in the U.S. from 2015-2020? By addressing this question, we aim to provide a data-driven overview of how demographic characteristics correlate with economic success in the modern American workforce.
+
+# Data and Methods
+
+## Data Source and Characteristics
+The data for this analysis was sourced from the U.S. Bureau of Labor Statistics (BLS) via the TidyTuesday project [@tidytuesday2021]. The dataset includes 4,224 observations with variables covering year, sex, race, age group, and median weekly earnings.
+
+## Pre-processing and Cleaning
+To prepare the data for modeling, several cleaning steps were performed using the tidyverse package in R [@wickham2019]:
+
+### Filtering: 
+The data was restricted to the years 2015-2020.
+
+### Handling Totals: 
+Observations labeled "Both Sexes" and "All Races" were removed to focus on specific demographic comparisons.
+
+### Outcome Variable: 
+A binary indicator, high_earner, was created where $(y_i)$ = 1 if an individual's median weekly earnings exceeded the overall dataset median, and 0 otherwise.
+
+### Factorization: 
+Predictors such as sex, race, and year were converted into factors to facilitate the logistic regression.
+
+### Age Predictor Consideration: 
+Age group was initially intended to be included as a predictor. However, the structure of the dataset introduced obstacles, as extensive age group information was only provided within aggregated categories such as "All Races" or "Both Sexes." One significant challenge encountered was "perfect separation" in the 16–19 age group, where virtually no individuals reached the high-earner threshold, leading to unstable and extremely large odds ratio estimates for other age groups. This made it difficult to align age with fully disaggregated race and sex variables and prevented the inclusion of all three predictors simultaneously without introducing aggregation inconsistencies. As a result, age group was excluded from the final model.
+
+## Statistical Modeling
+We employed a General Linear Model (GLM) with a binomial family and logit link function. The model formula is defined as:
+
+$$ \begin{aligned} 
+\text{logit}(p_i) =\; & \beta_0 \\ 
+& + \beta_1 \times \text{I(sex = Women)}_i \\ 
+& + \beta_2 \times \text{I(race = Black or African American)}_i \\ 
+& + \beta_3 \times \text{I(race = Asian)}_i \\ 
+& + \beta_4 \times \text{I(year = 2016)}_i \\ 
+& + \beta_5 \times \text{I(year = 2017)}_i \\ 
+& + \beta_6 \times \text{I(year = 2018)}_i \\ 
+& + \beta_7 \times \text{I(year = 2019)}_i \\ 
+& + \beta_8 \times \text{I(year = 2020)}_i \end{aligned} 
+$$ {#eq-high-earner-model}
+
+We assume that each $y_i$ is a realization of a random variable $Y_i \sim \mbox{Bernoulli}(p_i)$ independently.
+
+The first level of each categorical covariate served as the reference group for calculating odds ratios. The reference levels are sex = Men, race = White, and year = 2015. Also, $\mbox{I}()$ in @eq-high-earner-model indicates a dummy variable, taking value 1 when the condition is true and zero otherwise.
+
+## Exploratory Data Analysis
+Preliminary visualization indicated clear trends in the data. The proportion of high earners grew steadily over time, with a notable jump in 2020, likely due to the fixed median cutoff not accounting for inflation, initial bar plots showed that men, Asian individuals, and White individuals consistently maintained higher proportions of high-earner status compared to their counterparts.
+
+```{r}
+#| label: fig-year
+#| fig-cap: "High-earner probability over time (2015–2020). The proportion of individuals earning above the median increases gradually across the period, with a more noticeable rise in the final years."
+#| fig-width: 5
+#| fig-height: 3
+
+year_summary <- earn %>%
+  filter(!is.na(high_earner), year >= 2015 & year <= 2020) %>%
+  group_by(year) %>%
+  summarise(
+    prop_high = mean(high_earner),
+    .groups = "drop"
+  )
+
+ggplot(year_summary, aes(x = year, y = prop_high)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Year",
+    y = "Proportion High Earners",
+    title = "High-Earner Probability Over Time (2015–2020)"
+  ) +
+  theme_minimal()
+```
+
+# Results
+
+```{r}
+#| label: tbl-model
+#| tbl-cap: "Logistic regression summary of high-earner status regressed on sex, race, and year. Reference levels: sex = Men, race = White, year = 2015."
+
+summary(model_logit)
+```
+
+```{r}
+#| label: fig-predicted
+#| fig-cap: "Predicted probability of being a high earner by race and gender, averaged over 2015–2020. Men have higher predicted probabilities than women across all racial groups. Black or African American individuals have substantially lower predicted probabilities compared to Asian and White individuals."
+#| fig-width: 5
+#| fig-height: 3
+
+plot_data <- newdata %>%
+  group_by(sex, race) %>%
+  summarise(mean_prob = mean(prob), .groups = "drop")
+
+ggplot(plot_data, aes(x = race, y = mean_prob, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    title = "Predicted Probability of Being a High Earner",
+    subtitle = "By Race and Gender (2015–2020)",
+    x = "Race",
+    y = "Predicted Probability",
+    fill = "Gender"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+#| label: fig-ribbon
+#| fig-cap: "Predicted probability of being a high earner with 95% confidence intervals by race and gender across years 2015–2020. Shaded bands represent uncertainty. The gender gap is consistent across all racial groups, and predicted probabilities increased over time for all groups."
+#| fig-width: 6
+#| fig-height: 3
+
+ggplot(newdata, aes(x = year_num, y = prob, color = sex, fill = sex)) +
+
+  geom_ribbon(aes(ymin = prob_lower, ymax = prob_upper),
+              alpha = 0.2, color = NA) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+
+  facet_wrap(~ race, ncol = 3) +
+  scale_color_manual(values = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_fill_manual(values  = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  scale_x_continuous(breaks = 2015:2020) +
+  labs(
+    title    = "Predicted Probability of Being a High Earner",
+    subtitle = "With 95% Confidence Intervals by Race and Gender (2015–2020)",
+    x        = "Year",
+    y        = "Predicted Probability",
+    color    = "Gender",
+    fill     = "Gender"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x     = element_text(angle = 45, hjust = 1),
+    strip.text      = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+```
+
+```{r}
+#| label: fig-or
+#| fig-cap: "Odds ratios from logistic regression with 95% confidence intervals. Points to the right of the dashed line (OR > 1) indicate higher odds of being a high earner relative to the reference group (sex = Men, race = White, year = 2015). Black or African American individuals have substantially lower odds, while odds increased steadily from 2016 to 2020."
+#| fig-width: 5
+#| fig-height: 3
+
+coefs <- summary(model_logit)$coefficients
+
+or_df <- data.frame(
+  variable = rownames(coefs),
+  estimate = coefs[, "Estimate"],
+  se = coefs[, "Std. Error"]
+)
+
+# convert to odds ratios
+or_df$or    <- exp(or_df$estimate)
+or_df$lower <- exp(or_df$estimate - 1.96 * or_df$se)
+or_df$upper <- exp(or_df$estimate + 1.96 * or_df$se)
+
+# remove intercept
+or_df <- or_df[-1, ]
+
+# plot
+ggplot(or_df, aes(x = reorder(variable, or), y = or)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  labs(
+    title    = "Odds Ratios from Logistic Regression",
+    subtitle = "Reference levels: sex = Men, race = White, 
+    and year = 2015",
+    x        = "Predictor",
+    y        = "Odds Ratio (High Earner = 1)"
+  ) +
+  theme_minimal()
+```
+
+# Description and discussion of the results
+
+The logistic regression model (see @tbl-model) provides a quantified look at how demographic factors and time influence the likelihood of being a high earner. By exponentiating the coefficients to obtain odds ratios (see @fig-or), we can directly compare the relative likelihoods across different groups.
+
+## Interpretation of Demographic Factors
+
+The model confirms significant disparities in earning potential based on gender and race:
+
+### Gender: 
+With Men as the reference group, Women have an odds ratio of approximately o.44 (derived from the estimate -0.8123), indicating that women are roughly 56% less likely than men to be classified as high earners when holding race and year constant. This is visually supported by @fig-predicted, where women consistently show lower predicted probabilites across all racial groups.
+
+### Race: 
+Significant gaps exist between racial categories. Using White individuals as the reference group, Asian individuals show a slightly higher, though not statistically significant, likelihood of being high earners (OR $\approx$ 1.11, p > 0.05). Conversely, Black or African American individuals face the most significant disparity, with an odds ratio of 0.10. This suggests they are 90% less likely to be high earners compared to White individuals.
+
+## Temporal Trends
+
+The model reveals a steady upward trend in the probability of high-earner status from 2015 to 2020. Relative to 2015, the odds of being a high earner in 2020 rose to 6.94 (95% CI: [3.57, 13.93]). As noted in @fig-year and @fig-ribbon, this increase is particularly steep between 2019 and 2020. This likely reflects a "median cutoff issue" rather than a sudden surge in real wealth; as nominal wages rise over time due to inflation, a larger proportion of the population naturally "crosses" the fixed 2015 median line.
+
+## Data Challenges: Age Group Exclusion
+
+A primary challenge in this analysis was the inclusion of age as a predictor. Initial attempts to model age groups (e.g., 16-19, 25-54) resulted in unstable and inflated estimates, with odds ratios reaching into the millions. This occurred for two reasons: 
+
+### 1. Perfect Separation: 
+In the baseline group (ages 16-19), there were essentially zero individuals earning above the national median. Logistic regression cannot mathematically handle a category where the outcome is constant, leading the model to assign extreme coefficients to separate that group from others.
+
+### 2. Structural Inconsistency: 
+The source BLS data provided age information in overlapping, aggregated categories (e.g., "16 years and over" vs. "25 to 54 years") that did not align cleanly with the disaggregated race and sex variables.
+
+To maintain the integrity of the statistical estimates for race and gender, the age variable was removed from the final model. While its exclusion is a limitation, the initial results highlight a fundamental reality: work experience is a prerequisite for high-earner status, making the 16-19 cohort a distinct outlier in national earnings data.
+
+## Implications and Limitations
+
+These findings underscore the persistence of systemic earning gaps that cannot be explained by time alone. However, the model is limited by the absence of variables such as education and occupation. Without these factors, we cannot determine if the observed racial and gender gaps are due to different career paths, educational attainment, or direct pay discrimination. Furthermore, as the data is observational, these results show strong associations but do not imply direct causation.
+
+# Conclusion
+
+This study examined how the probability of being a high earner is affected by demographics and time using a generalized linear model. The results showed that men are more likely to be high earners than women. Our model also shows that there are substantial differences in the probability of being a high earner between races. This may reflect systemic barriers that underprivileged groups face. The results showed a consistent increase from 2015 to 2020. This result could be due to wages increasing compared to a fixed median threshold. This analysis could limited by our dataset, which did not include factors such as education, occupation, and location, which could have significant effects on earnings. This analysis is also limited by the fact the data consists of group level medians rather than individual level earnings data. The lack of individual data made it more difficult to do regression analysis. The results and future iterations of this model may help identify underprivileged groups and inform policies aimed at promoting a more equitable society.
+
+### References
+
+::: {#refs}
+:::
+
+# Appendix
+
+```{r}
+#| echo: true
+#| eval: false
+
+# Load libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(readr)
+
+# load data
+employed <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-02-23/employed.csv')
+earn     <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/main/data/2021/2021-02-23/earn.csv')
+
+# compute median on full dataset before filtering
+median_earn <- median(earn$median_weekly_earn, na.rm = TRUE)
+
+# add high_earner to full earn for plots
+earn <- earn %>%
+  mutate(high_earner = as.integer(median_weekly_earn >= median_earn))
+
+# filtered dataset for modelling
+earn_clean <- earn %>%
+  filter(
+    year >= 2015 & year <= 2020,
+    sex  != "Both Sexes",
+    race != "All Races"
+  ) %>%
+  mutate(
+    sex  = factor(sex,  levels = c("Men", "Women")),
+    race = factor(race, levels = c("White", "Black or African American", "Asian")),
+    year = factor(year)
+  ) %>%
+  droplevels()
+
+# fit model
+model_logit <- glm(
+  high_earner ~ sex + race + year,
+  data   = earn_clean,
+  family = binomial
+)
+
+summary(model_logit)
+
+# odds ratios and their confidence intervals
+exp(cbind(OR = coef(model_logit), confint(model_logit)))
+
+# Line plot of high-earner proportion over time (2015–2020)
+year_summary <- earn %>%
+  filter(!is.na(high_earner), year >= 2015 & year <= 2020) %>%
+  group_by(year) %>%
+  summarise(
+    prop_high = mean(high_earner),
+    .groups = "drop"
+  )
+
+ggplot(year_summary, aes(x = year, y = prop_high)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Year",
+    y = "Proportion High Earners",
+    title = "High-Earner Probability Over Time (2015–2020)"
+  ) +
+  theme_minimal()
+
+# Barplot for predict probabilities for race and gender
+
+# Create prediction grid
+newdata <- expand.grid(
+  sex  = levels(earn_clean$sex),
+  race = levels(earn_clean$race),
+  year = levels(earn_clean$year)
+)
+
+# predict probabilities
+newdata$pred <- predict(model_logit, newdata, type = "response")
+
+# Summarize across age/year
+plot_data <- newdata %>%
+  group_by(sex, race) %>%
+  summarise(mean_prob = mean(pred), .groups = "drop")
+
+# Plot
+ggplot(plot_data, aes(x = race, y = mean_prob, fill = sex)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  labs(
+    title = "Predicted Probability of Being a High Earner",
+    subtitle = "By Race and Gender (2015–2020)",
+    x = "Race",
+    y = "Predicted Probability",
+    fill = "Gender"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Predicted probability of being a high earner by race and gender
+# with 95% confidence intervals shown across years (2015-2020)
+
+# inverse logit converts log-odds to probabilities
+invlogit <- function(x) exp(x) / (1 + exp(x))
+
+# predict on link scale to get standard errors
+pred <- predict(model_logit, newdata = newdata, type = "link", se.fit = TRUE)
+
+# convert log-odds and bounds to probability scale
+newdata$prob       <- invlogit(pred$fit)
+newdata$prob_lower <- invlogit(pred$fit - 1.96 * pred$se.fit)
+newdata$prob_upper <- invlogit(pred$fit + 1.96 * pred$se.fit)
+
+# convert year back to numeric for line plot
+newdata$year_num <- as.numeric(as.character(newdata$year))
+
+# plot predicted probabilities over time grouped by race
+ggplot(newdata, aes(x = year_num, y = prob, color = sex, fill = sex)) +
+
+  geom_ribbon(aes(ymin = prob_lower, ymax = prob_upper),
+              alpha = 0.2, color = NA) +  # add confidence interval band
+  geom_line(size = 1) +                  # add trend lines over time
+  geom_point(size = 2) +                 # add points for each year
+
+  facet_wrap(~ race, ncol = 3) +         # split plots by race
+  scale_color_manual(values = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_fill_manual(values  = c("Men" = "dodgerblue", "Women" = "hotpink")) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+  scale_x_continuous(breaks = 2015:2020) +
+  labs(
+    title    = "Predicted Probability of Being a High Earner",
+    subtitle = "With 95% Confidence Intervals by Race and Gender (2015–2020)",
+    x        = "Year",
+    y        = "Predicted Probability",
+    color    = "Gender",
+    fill     = "Gender"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x     = element_text(angle = 45, hjust = 1),
+    strip.text      = element_text(face = "bold"),  # bold group labels
+    legend.position = "bottom"                      # move legend to bottom
+  )
+
+# Forest plot of odds ratios from logistic regression model
+
+coefs <- summary(model_logit)$coefficients
+
+or_df <- data.frame(
+  variable = rownames(coefs),
+  estimate = coefs[, "Estimate"],
+  se       = coefs[, "Std. Error"]
+)
+
+# convert to odds ratios
+or_df$or    <- exp(or_df$estimate)
+or_df$lower <- exp(or_df$estimate - 1.96 * or_df$se)
+or_df$upper <- exp(or_df$estimate + 1.96 * or_df$se)
+
+# remove intercept
+or_df <- or_df[-1, ]
+
+# plot
+ggplot(or_df, aes(x = reorder(variable, or), y = or)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2) +
+  coord_flip() +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  labs(
+    title    = "Odds Ratios from Logistic Regression",
+    subtitle = "Reference levels: sex = Men, race = White, and year = 2015",
+    x        = "Predictor",
+    y        = "Odds Ratio (High Earner = 1)"
+  ) +
+  theme_minimal()
+```
