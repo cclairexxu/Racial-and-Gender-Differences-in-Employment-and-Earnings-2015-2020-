@@ -4,9 +4,9 @@ As plot of a group project, used U.S. Bureau of Labor Statistics data from 2015 
 weekly income. Cleaned and analyzed the data in R, built a logistic regression 
 model, and created visualizations to show earnings gaps across demographic groups.
 ## Files
-- [Differences in Employment Report.qmd](Differences-in-Employment-Report.qmd) – Quarto file with the full analysis and visualizations
-- [Differences in Employment Report.pdf](Differences-in-Employment-Report.pdf) – Written report covering methods and findings
-- [references.bib](references.bib) – Bibliography file
+- [Differences in Employment Report.qmd](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Differences%20in%20Employment%20Report.qmd) – Quarto file with the full analysis and visualizations
+- [Differences in Employment Report.pdf](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Differences%20in%20Employment%20Report.pdf) – Written report covering methods and findings
+- [references.bib](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/references.bib) – Bibliography file
 ## Visualizations
 Line plots, bar charts, predicted probability plots with confidence intervals, 
 and a forest plot of odds ratios across race, gender, and year
