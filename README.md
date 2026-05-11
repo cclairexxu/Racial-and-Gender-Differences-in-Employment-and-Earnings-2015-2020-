@@ -6,8 +6,8 @@ model, and created visualizations to show earnings gaps across demographic group
 ## Files
 - [Differences in Employment Report.qmd](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Differences%20in%20Employment%20Report.qmd) – Quarto file with the full analysis and visualizations
 - [Differences in Employment Report.pdf](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Differences%20in%20Employment%20Report.pdf) – Written report covering methods and findings
+- [Differences in Employment Propsal.pdf](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Differences%20in%20Employment%20Propsal.pdf) – Project proposal outlining research goals and methodology
 - [references.bib](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/references.bib) – Bibliography file
-- [Proposal.pdf](https://github.com/cclairexxu/Racial-and-Gender-Differences-in-Employment-and-Earnings-2015-2020-/blob/main/Proposal.pdf) – Project proposal outlining research goals and methodology
 ## Visualizations
 Line plots, bar charts, predicted probability plots with confidence intervals, 
 and a forest plot of odds ratios across race, gender, and year
